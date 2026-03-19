@@ -1,13 +1,82 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  CLIENT
+  LIFELINER
+}
+
+enum AgeGroup {
+  TEENS // 13–17
+  YOUNG_ADULTS // 18–25
+  ADULTS // 26–64
+  SENIORS // 65+
+}
+
+enum AuthProviderType {
+  GOOGLE
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+/// Core identity record. One per real-world person.
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  role       Role     @default(CLIENT)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  auth_providers AuthProvider[]
+  lifeliner      Lifeliner?
+
+  @@map("users")
+}
+
+/// One row per OAuth provider linked to a user.
+/// A user can have multiple providers; each (provider, provider_id) pair is unique.
+model AuthProvider {
+  id          String           @id @default(cuid())
+  user_id     String
+  user        User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  provider    AuthProviderType
+  provider_id String // subject / sub returned by the OAuth provider
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  @@unique([provider, provider_id])
+  @@index([user_id])
+  @@map("auth_providers")
+}
+
+// ---------------------------------------------------------------------------
+// Profiles
+// ---------------------------------------------------------------------------
+
+model Lifeliner {
+  id              String     @id @default(cuid())
+  user_id         String     @unique
+  user            User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  full_name       String
+  display_name    String
+  age             Int
+  private_picture String // verification photo — never exposed publicly
+  profile_picture String // public profile photo
+  about_me        String
+  age_groups      AgeGroup[] // age groups the lifeliner is comfortable supporting
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+
+  @@map("lifeliners")
 }
