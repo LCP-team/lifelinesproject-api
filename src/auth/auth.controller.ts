@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Res,
   UseGuards,
@@ -14,6 +16,7 @@ import type { AuthUser } from './types/auth-user.type';
 import { GoogleGuard } from './guards/google.guard';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { SelectRoleDto } from './dto/select-role.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -57,6 +60,12 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return user;
+  }
+
+  @Patch('role')
+  @UseGuards(JwtAuthGuard)
+  selectRole(@CurrentUser() user: AuthUser, @Body() dto: SelectRoleDto) {
+    return this.authService.selectRole(user.id, dto.role);
   }
 
   @Post('logout')

@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from './types/auth-user.type';
-import { AuthProviderType } from '@prisma/client';
+import { AuthProviderType, Role } from '@prisma/client';
 
 interface FindOrCreateUserParams {
   provider: AuthProviderType;
@@ -53,6 +57,27 @@ export class AuthService {
     });
 
     return { id: user.id, email: user.email, role: user.role };
+  }
+
+  async selectRole(userId: string, role: Role): Promise<AuthUser> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (user.role !== null) {
+      throw new ConflictException(
+        'Role has already been set and cannot be changed',
+      );
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role },
+    });
+
+    return { id: updated.id, email: updated.email, role: updated.role };
   }
 
   login(user: AuthUser): { access_token: string } {
