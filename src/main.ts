@@ -1,11 +1,14 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import cookieParser = require('cookie-parser');
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors();
+  app.enableCors({
+    origin: 'https://*.lifelinesproject.com',
+    credentials: true,
+  });
   app.use(cookieParser(process.env.COOKIE_SECRET));
 
   app.useGlobalPipes(
