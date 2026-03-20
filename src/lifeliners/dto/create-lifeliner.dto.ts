@@ -7,7 +7,6 @@ import {
   IsInt,
   IsNotEmpty,
   IsString,
-  IsUrl,
   Max,
   Min,
 } from 'class-validator';
@@ -26,12 +25,6 @@ export class CreateLifelinerDto {
   @Max(120)
   @Transform(({ value }) => parseInt(`${value}`, 10))
   age: number;
-
-  @IsUrl()
-  private_picture: string;
-
-  @IsUrl()
-  profile_picture: string;
 
   @IsString()
   @IsNotEmpty()
