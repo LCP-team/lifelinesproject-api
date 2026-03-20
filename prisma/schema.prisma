@@ -34,7 +34,7 @@ enum AuthProviderType {
 model User {
   id         String   @id @default(cuid())
   email      String   @unique
-  role       Role     @default(CLIENT)
+  role       Role?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
