@@ -3,6 +3,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Post,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -55,5 +56,10 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return user;
+  }
+
+  @Post('logout')
+  logout(@Res() res: Response) {
+    res.clearCookie('access_token').status(HttpStatus.NO_CONTENT).send();
   }
 }
