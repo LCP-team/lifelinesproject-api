@@ -59,7 +59,7 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
-    return user;
+    return this.authService.getUser(user.id);
   }
 
   @Patch('role')
