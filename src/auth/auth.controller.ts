@@ -61,6 +61,19 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res() res: Response) {
-    res.clearCookie('access_token').status(HttpStatus.NO_CONTENT).send();
+    res
+      .clearCookie('access_token', {
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 0,
+        domain:
+          process.env.NODE_ENV === 'production'
+            ? '.lifelinesproject.com'
+            : undefined,
+      })
+      .status(HttpStatus.NO_CONTENT)
+      .send();
   }
 }
