@@ -8,7 +8,7 @@ export class GoogleGuard extends AuthGuard('google') {
   constructor(private readonly configService: ConfigService) {
     super({
       successRedirect: `${configService.get<string>('CLIENT_URL')}/`,
-      failureRedirect: `${configService.get<string>('CLIENT_URL')}/auth`,
+      failureRedirect: `${configService.get<string>('CLIENT_URL')}/signin`,
     });
   }
 
@@ -20,7 +20,7 @@ export class GoogleGuard extends AuthGuard('google') {
       context
         .switchToHttp()
         .getResponse<Response>()
-        .redirect(this.configService.get<string>('CLIENT_URL') + '/auth');
+        .redirect(this.configService.get<string>('CLIENT_URL') + '/signin');
       return false;
     }
   }

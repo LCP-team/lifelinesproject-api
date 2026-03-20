@@ -43,7 +43,7 @@ export class AuthController {
         })
         .redirect(`${this.configService.get<string>('CLIENT_URL')}/`);
     } catch {
-      res.redirect(`${this.configService.get<string>('CLIENT_URL')}/auth`);
+      res.redirect(`${this.configService.get<string>('CLIENT_URL')}/signin`);
     }
   }
 
