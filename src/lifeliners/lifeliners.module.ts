@@ -5,5 +5,6 @@ import { LifelinersService } from './lifeliners.service';
 @Module({
   controllers: [LifelinersController],
   providers: [LifelinersService],
+  exports: [LifelinersService],
 })
 export class LifelinersModule {}
