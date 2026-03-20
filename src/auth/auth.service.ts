@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from './types/auth-user.type';
 import { AuthProviderType, Role } from '@prisma/client';
+import { LifelinersService } from 'src/lifeliners/lifeliners.service';
 
 interface FindOrCreateUserParams {
   provider: AuthProviderType;
@@ -20,6 +21,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly lifelinersService: LifelinersService,
   ) {}
 
   async findOrCreateUser(params: FindOrCreateUserParams): Promise<AuthUser> {
@@ -77,6 +79,8 @@ export class AuthService {
       where: { id: userId },
       data: { role },
     });
+
+    await this.lifelinersService.create(updated.id);
 
     return { id: updated.id, email: updated.email, role: updated.role };
   }

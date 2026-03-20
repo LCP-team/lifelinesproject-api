@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLifelinerDto } from './dto/create-lifeliner.dto';
 import { UpdateLifelinerDto } from './dto/update-lifeliner.dto';
-import { AgeGroup } from '@prisma/client';
+import { AgeGroup, Prisma } from '@prisma/client';
 
 // Fields safe to return on public endpoints — never includes private_picture or full_name
 const PUBLIC_SELECT = {
@@ -43,15 +43,25 @@ export class LifelinersService {
     return lifeliner;
   }
 
-  async create(userId: string, dto: CreateLifelinerDto) {
+  async create(userId: string, dto?: CreateLifelinerDto) {
     const existing = await this.prisma.lifeliner.findUnique({
       where: { user_id: userId },
     });
     if (existing)
       throw new ConflictException('Lifeliner profile already exists');
 
+    const data: Omit<Prisma.LifelinerCreateInput, 'user'> = dto ?? {
+      full_name: '',
+      display_name: '',
+      age: 0,
+      private_picture: '',
+      profile_picture: '',
+      about_me: '',
+      age_groups: [],
+    };
+
     return this.prisma.lifeliner.create({
-      data: { user_id: userId, ...dto },
+      data: { user_id: userId, ...data },
     });
   }
 
