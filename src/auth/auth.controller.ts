@@ -40,6 +40,10 @@ export class AuthController {
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
           maxAge: 60 * 60 * 24 * 7,
+          domain:
+            process.env.NODE_ENV === 'production'
+              ? '.lifelinesproject.com'
+              : undefined,
         })
         .redirect(`${this.configService.get<string>('CLIENT_URL')}/`);
     } catch {
