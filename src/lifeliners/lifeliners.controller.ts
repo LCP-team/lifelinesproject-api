@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   StreamableFile,
   UploadedFile,
@@ -73,7 +74,7 @@ export class LifelinersController {
     return this.lifelinersService.update(user.id, user.id, dto);
   }
 
-  @Patch('upload/profile-picture')
+  @Post('upload/profile-picture')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIFELINER)
   @UseInterceptors(
@@ -94,7 +95,7 @@ export class LifelinersController {
     return this.lifelinersService.updateProfilePicture(user.id, file.filename);
   }
 
-  @Patch('upload/verification-photo')
+  @Post('upload/verification-photo')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIFELINER)
   @UseInterceptors(
