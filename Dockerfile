@@ -20,6 +20,7 @@ RUN npm ci --omit=dev
 
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
+COPY public ./public
 RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 
