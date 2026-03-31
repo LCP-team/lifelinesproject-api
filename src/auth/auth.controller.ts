@@ -38,6 +38,16 @@ export class AuthController {
   ) {
     try {
       const { access_token } = this.authService.login(user);
+
+      const clientUrl = this.configService.getOrThrow<string>('CLIENT_URL');
+
+      const destination =
+        user.role === 'ADMIN'
+          ? `/admin`
+          : user.role === 'LIFELINER' || user.role === 'CLIENT'
+            ? `${clientUrl}/profile/complete`
+            : `${clientUrl}/select-role`;
+
       res
         .cookie('access_token', access_token, {
           httpOnly: true,
@@ -50,7 +60,7 @@ export class AuthController {
               ? '.lifelinesproject.com'
               : undefined,
         })
-        .redirect(`${this.configService.get<string>('CLIENT_URL')}/`);
+        .redirect(destination);
     } catch {
       res.redirect(`${this.configService.get<string>('CLIENT_URL')}/signin`);
     }
