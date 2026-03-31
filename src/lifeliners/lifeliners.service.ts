@@ -39,8 +39,8 @@ export class LifelinersService {
 
     const where: Prisma.LifelinerWhereInput = {
       ...(age_groups?.length && { age_groups: { hasSome: age_groups } }),
-      ...(search && {
-        display_name: { contains: search, mode: 'insensitive' },
+      ...(search?.trim() && {
+        display_name: { contains: search.trim(), mode: 'insensitive' },
       }),
       ...((min_age !== undefined || max_age !== undefined) && {
         age: {
@@ -50,13 +50,18 @@ export class LifelinersService {
       }),
     };
 
-    return this.prisma.lifeliner.findMany({
-      where,
-      select: PUBLIC_SELECT,
-      orderBy: { created_at: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.lifeliner.findMany({
+        where,
+        select: PUBLIC_SELECT,
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.lifeliner.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findOne(id: string) {

@@ -362,12 +362,38 @@
         ],
         "responses": {
           "200": {
-            "description": "Array of public lifeliner profiles.",
+            "description": "Paginated lifeliner profiles.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/PublicLifeliner" }
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/PublicLifeliner" }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "Total number of lifeliners matching the current filters.",
+                      "example": 42
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "Current page number.",
+                      "example": 1
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "description": "Number of results per page.",
+                      "example": 20
+                    },
+                    "totalPages": {
+                      "type": "integer",
+                      "description": "Total number of pages for the current filters.",
+                      "example": 3
+                    }
+                  },
+                  "required": ["data", "total", "page", "limit", "totalPages"]
                 }
               }
             }
