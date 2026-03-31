@@ -20,4 +20,3 @@ export class AppModule implements NestModule {
     consumer.apply(CorsMiddleware).forRoutes('*');
   }
 }
-export class AppModule {}
