@@ -65,8 +65,12 @@ export class LifelinersController {
   @Get('me')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIFELINER)
-  me(@CurrentUser() user: AuthUser) {
-    return this.lifelinersService.findForUser(user.id);
+  async me(@CurrentUser() user: AuthUser) {
+    const res = await this.lifelinersService.findForUser(user.id);
+    return {
+      ...res,
+      private_picture: 'private/verification-photo',
+    };
   }
 
   @Get(':id')
