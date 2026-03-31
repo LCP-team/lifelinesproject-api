@@ -12,10 +12,7 @@ async function bootstrap() {
     prefix: '/uploads/public',
   });
   app.enableCors({
-    origin: [
-      'https://lifelinesproject.com',
-      'https://www.lifelinesproject.com',
-    ],
+    origin: ['https://lifelinesproject.com'],
     credentials: true,
   });
   app.use(cookieParser(process.env.COOKIE_SECRET));
