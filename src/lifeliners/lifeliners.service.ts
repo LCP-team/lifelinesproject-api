@@ -14,7 +14,7 @@ import {
 import { CreateLifelinerDto } from './dto/create-lifeliner.dto';
 import { FilterLifelinersDto } from './dto/filter-lifeliners.dto';
 import { UpdateLifelinerDto } from './dto/update-lifeliner.dto';
-import { AgeGroup, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 // Fields safe to return on public endpoints — never includes private_picture or full_name
 const PUBLIC_SELECT = {
@@ -34,7 +34,7 @@ export class LifelinersService {
     private readonly storage: StorageService,
   ) {}
 
-  findAll(dto: FilterLifelinersDto) {
+  async findAll(dto: FilterLifelinersDto) {
     const { age_groups, search, min_age, max_age, page = 1, limit = 20 } = dto;
 
     const where: Prisma.LifelinerWhereInput = {
