@@ -62,6 +62,13 @@ export class LifelinersController {
     return this.lifelinersService.findAll(query.age_groups);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.LIFELINER)
+  me(@CurrentUser() user: AuthUser) {
+    return this.lifelinersService.findForUser(user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.lifelinersService.findOne(id);

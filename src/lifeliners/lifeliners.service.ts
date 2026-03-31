@@ -52,10 +52,9 @@ export class LifelinersService {
     return lifeliner;
   }
 
-  async findForUser(id: string) {
+  async findForUser(userId: string) {
     const lifeliner = await this.prisma.lifeliner.findUnique({
-      where: { user_id: id },
-      select: PUBLIC_SELECT,
+      where: { user_id: userId },
     });
     if (!lifeliner) throw new NotFoundException('Lifeliner not found');
     return lifeliner;
