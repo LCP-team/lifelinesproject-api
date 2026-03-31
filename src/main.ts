@@ -10,10 +10,6 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/admin' });
-  app.enableCors({
-    origin: true,
-    credentials: true,
-  });
   app.use(cookieParser(process.env.COOKIE_SECRET));
   app.useStaticAssets(join(process.cwd(), 'uploads', 'public'), {
     prefix: '/uploads/public',
