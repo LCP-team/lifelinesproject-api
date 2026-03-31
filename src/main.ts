@@ -12,7 +12,7 @@ async function bootstrap() {
     prefix: '/uploads/public',
   });
   app.enableCors({
-    origin: '*',
+    origin: true,
     credentials: true,
   });
   app.use(cookieParser(process.env.COOKIE_SECRET));
