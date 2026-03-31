@@ -69,7 +69,7 @@ export class LifelinersController {
     const res = await this.lifelinersService.findForUser(user.id);
     return {
       ...res,
-      private_picture: 'private/verification-photo',
+      private_picture: '/lifeliners/private/verification-photo',
     };
   }
 
