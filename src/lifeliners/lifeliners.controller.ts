@@ -70,8 +70,9 @@ export class LifelinersController {
   @Patch()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIFELINER)
-  update(@CurrentUser() user: AuthUser, @Body() dto: UpdateLifelinerDto) {
-    return this.lifelinersService.update(user.id, user.id, dto);
+  async update(@CurrentUser() user: AuthUser, @Body() dto: UpdateLifelinerDto) {
+    const lifeliner = await this.lifelinersService.findForUser(user.id);
+    return this.lifelinersService.update(lifeliner.id, user.id, dto);
   }
 
   @Post('upload/profile-picture')
