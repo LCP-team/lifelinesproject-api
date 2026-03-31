@@ -23,8 +23,8 @@
     "schemas": {
       "Role": {
         "type": "string",
-        "enum": ["CLIENT", "LIFELINER"],
-        "description": "CLIENT — person seeking support. LIFELINER — volunteer mental health provider."
+        "enum": ["CLIENT", "LIFELINER", "ADMIN"],
+        "description": "CLIENT — person seeking support. LIFELINER — volunteer mental health provider. ADMIN — platform administrator (set directly in DB)."
       },
       "AgeGroup": {
         "type": "string",
@@ -66,6 +66,11 @@
             "items": { "$ref": "#/components/schemas/AgeGroup" },
             "example": ["YOUNG_ADULTS", "ADULTS"]
           },
+          "is_verified": {
+            "type": "boolean",
+            "description": "Whether an admin has verified this lifeliner's identity.",
+            "example": false
+          },
           "created_at": { "type": "string", "format": "date-time" }
         },
         "required": [
@@ -75,6 +80,7 @@
           "profile_picture",
           "about_me",
           "age_groups",
+          "is_verified",
           "created_at"
         ]
       },
@@ -98,7 +104,12 @@
               },
               "updated_at": { "type": "string", "format": "date-time" }
             },
-            "required": ["user_id", "full_name", "private_picture", "updated_at"]
+            "required": [
+              "user_id",
+              "full_name",
+              "private_picture",
+              "updated_at"
+            ]
           }
         ]
       },
@@ -124,7 +135,13 @@
             "example": ["YOUNG_ADULTS", "ADULTS"]
           }
         },
-        "required": ["full_name", "display_name", "age", "about_me", "age_groups"]
+        "required": [
+          "full_name",
+          "display_name",
+          "age",
+          "about_me",
+          "age_groups"
+        ]
       },
       "UpdateLifelinerBody": {
         "type": "object",
@@ -175,6 +192,55 @@
           "message": { "type": "string" },
           "error": { "type": "string" }
         }
+      },
+      "AdminUser": {
+        "type": "object",
+        "description": "User record as seen by an admin.",
+        "properties": {
+          "id": { "type": "string", "example": "cm9abc123" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "$ref": "#/components/schemas/Role" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "lifeliner": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "display_name": { "type": "string" },
+              "is_verified": { "type": "boolean" }
+            },
+            "required": ["id", "display_name", "is_verified"]
+          }
+        },
+        "required": ["id", "email", "role", "created_at", "lifeliner"]
+      },
+      "PaginatedUsers": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AdminUser" }
+          },
+          "total": { "type": "integer", "example": 15 },
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 20 },
+          "totalPages": { "type": "integer", "example": 1 }
+        },
+        "required": ["data", "total", "page", "limit", "totalPages"]
+      },
+      "PaginatedAdminLifeliners": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Lifeliner" }
+          },
+          "total": { "type": "integer", "example": 8 },
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 20 },
+          "totalPages": { "type": "integer", "example": 1 }
+        },
+        "required": ["data", "total", "page", "limit", "totalPages"]
       },
       "PaginatedLifeliners": {
         "type": "object",
@@ -340,7 +406,7 @@
       "get": {
         "tags": ["Lifeliners"],
         "summary": "List lifeliners (public)",
-        "description": "Returns paginated public lifeliner profiles. All filters are optional and combinable. Never returns `private_picture` or `full_name`.",
+        "description": "Returns paginated public lifeliner profiles. Only verified lifeliners are included. All filters are optional and combinable. Never returns `private_picture` or `full_name`.",
         "parameters": [
           {
             "name": "age_groups",
@@ -366,14 +432,24 @@
             "in": "query",
             "required": false,
             "description": "Minimum lifeliner age (inclusive). Must be between 18 and 120.",
-            "schema": { "type": "integer", "minimum": 18, "maximum": 120, "example": 20 }
+            "schema": {
+              "type": "integer",
+              "minimum": 18,
+              "maximum": 120,
+              "example": 20
+            }
           },
           {
             "name": "max_age",
             "in": "query",
             "required": false,
             "description": "Maximum lifeliner age (inclusive). Must be between 18 and 120.",
-            "schema": { "type": "integer", "minimum": 18, "maximum": 120, "example": 40 }
+            "schema": {
+              "type": "integer",
+              "minimum": 18,
+              "maximum": 120,
+              "example": 40
+            }
           },
           {
             "name": "page",
@@ -387,7 +463,12 @@
             "in": "query",
             "required": false,
             "description": "Results per page. Defaults to 20, max 100.",
-            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
           }
         ],
         "responses": {
@@ -667,6 +748,178 @@
       }
     }
   },
+  "/admin/users": {
+    "get": {
+      "tags": ["Admin"],
+      "summary": "List all users",
+      "security": [{ "cookieAuth": [] }],
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "schema": { "type": "integer", "minimum": 1, "default": 1 }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Paginated user list.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PaginatedUsers" }
+            }
+          }
+        },
+        "401": { "$ref": "#/components/responses/Unauthorized" },
+        "403": { "$ref": "#/components/responses/Forbidden" }
+      }
+    }
+  },
+  "/admin/users/{id}": {
+    "delete": {
+      "tags": ["Admin"],
+      "summary": "Delete user",
+      "description": "Permanently deletes the user and all linked data (lifeliner profile, auth providers) via cascade.",
+      "security": [{ "cookieAuth": [] }],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ],
+      "responses": {
+        "204": { "description": "User deleted." },
+        "401": { "$ref": "#/components/responses/Unauthorized" },
+        "403": { "$ref": "#/components/responses/Forbidden" },
+        "404": { "$ref": "#/components/responses/NotFound" }
+      }
+    }
+  },
+  "/admin/lifeliners": {
+    "get": {
+      "tags": ["Admin"],
+      "summary": "List all lifeliners (full records)",
+      "description": "Returns full lifeliner records including `full_name` and `private_picture` path.",
+      "security": [{ "cookieAuth": [] }],
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "schema": { "type": "integer", "minimum": 1, "default": 1 }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Paginated full lifeliner list.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaginatedAdminLifeliners"
+              }
+            }
+          }
+        },
+        "401": { "$ref": "#/components/responses/Unauthorized" },
+        "403": { "$ref": "#/components/responses/Forbidden" }
+      }
+    }
+  },
+  "/admin/lifeliners/{id}/verification-photo": {
+    "get": {
+      "tags": ["Admin"],
+      "summary": "Stream lifeliner verification photo",
+      "security": [{ "cookieAuth": [] }],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Image file stream.",
+          "content": { "image/jpeg": {}, "image/png": {}, "image/webp": {} }
+        },
+        "401": { "$ref": "#/components/responses/Unauthorized" },
+        "403": { "$ref": "#/components/responses/Forbidden" },
+        "404": { "$ref": "#/components/responses/NotFound" }
+      }
+    }
+  },
+  "/admin/lifeliners/{id}/verify": {
+    "patch": {
+      "tags": ["Admin"],
+      "summary": "Toggle lifeliner verification",
+      "description": "Flips `is_verified` on the lifeliner profile. Call again to unverify.",
+      "security": [{ "cookieAuth": [] }],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Updated lifeliner record.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Lifeliner" }
+            }
+          }
+        },
+        "401": { "$ref": "#/components/responses/Unauthorized" },
+        "403": { "$ref": "#/components/responses/Forbidden" },
+        "404": { "$ref": "#/components/responses/NotFound" }
+      }
+    }
+  },
+  "/admin/lifeliners/{id}": {
+    "delete": {
+      "tags": ["Admin"],
+      "summary": "Delete lifeliner profile",
+      "description": "Removes the lifeliner profile only. The parent user account is kept.",
+      "security": [{ "cookieAuth": [] }],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ],
+      "responses": {
+        "204": { "description": "Lifeliner profile deleted." },
+        "401": { "$ref": "#/components/responses/Unauthorized" },
+        "403": { "$ref": "#/components/responses/Forbidden" },
+        "404": { "$ref": "#/components/responses/NotFound" }
+      }
+    }
+  },
   "tags": [
     {
       "name": "Auth",
@@ -675,6 +928,10 @@
     {
       "name": "Lifeliners",
       "description": "Volunteer mental health provider directory"
+    },
+    {
+      "name": "Admin",
+      "description": "Platform administration — requires role `ADMIN` (set directly in the database)"
     }
   ]
 }

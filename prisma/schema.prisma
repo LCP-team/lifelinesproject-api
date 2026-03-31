@@ -13,6 +13,7 @@ datasource db {
 enum Role {
   CLIENT
   LIFELINER
+  ADMIN
 }
 
 enum AgeGroup {
@@ -75,6 +76,7 @@ model Lifeliner {
   profile_picture String // public profile photo
   about_me        String
   age_groups      AgeGroup[] // age groups the lifeliner is comfortable supporting
+  is_verified     Boolean    @default(false)
   created_at      DateTime   @default(now())
   updated_at      DateTime   @updatedAt
 

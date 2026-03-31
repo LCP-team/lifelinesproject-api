@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lifelines Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0d0f1a;
+      --surface:      #151722;
+      --surface2:     #1e2133;
+      --border:       #2a2d42;
+      --primary:      #6366f1;
+      --primary-dim:  #4f52c9;
+      --danger:       #ef4444;
+      --danger-dim:   #b91c1c;
+      --success:      #22c55e;
+      --warning:      #f59e0b;
+      --text:         #e2e8f0;
+      --muted:        #7c85a0;
+      --radius:       8px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      font-size: 14px;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px;
+      min-height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0;
+      flex-shrink: 0;
+    }
+    .sidebar-logo {
+      padding: 0 20px 24px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.3px;
+    }
+    .sidebar-logo span { color: var(--muted); font-weight: 400; font-size: 11px; display: block; margin-top: 2px; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      color: var(--muted);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all .15s;
+      user-select: none;
+    }
+    .nav-item:hover { color: var(--text); background: var(--surface2); }
+    .nav-item.active { color: var(--text); border-left-color: var(--primary); background: var(--surface2); }
+    .nav-icon { font-size: 16px; }
+    .sidebar-bottom { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); }
+    .admin-badge {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .admin-badge strong { color: var(--text); font-size: 13px; }
+
+    /* ── Main ── */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .topbar-title { font-size: 15px; font-weight: 600; }
+    .content { padding: 28px; flex: 1; }
+
+    /* ── Auth wall ── */
+    #auth-wall {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 12px;
+      color: var(--muted);
+    }
+    #auth-wall .icon { font-size: 40px; }
+    #auth-wall h2 { color: var(--text); font-size: 18px; }
+
+    /* ── Stats ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 6px; }
+    .stat-value { font-size: 26px; font-weight: 700; }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .table-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .table-header h2 { font-size: 14px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--surface2); }
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    td { padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface2); }
+    .empty-row td { text-align: center; color: var(--muted); padding: 40px; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-client    { background: #1e3a5f; color: #60a5fa; }
+    .badge-lifeliner { background: #1e3d30; color: #4ade80; }
+    .badge-admin     { background: #3b1f5e; color: #c084fc; }
+    .badge-none      { background: var(--surface2); color: var(--muted); }
+    .badge-verified  { background: #1e3d30; color: #4ade80; }
+    .badge-unverified{ background: #3d2121; color: #f87171; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background .15s, opacity .15s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-dim); }
+    .btn-danger  { background: transparent; color: var(--danger); border: 1px solid #3a1a1a; }
+    .btn-danger:hover:not(:disabled)  { background: #3a1a1a; }
+    .btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled)   { color: var(--text); background: var(--surface2); }
+    .btn-success { background: transparent; color: var(--success); border: 1px solid #1a3a22; }
+    .btn-success:hover:not(:disabled) { background: #1a3a22; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .pagination-btns { display: flex; gap: 6px; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 520px;
+      width: 90%;
+    }
+    .modal h3 { font-size: 15px; margin-bottom: 16px; }
+    .modal-photo { width: 100%; border-radius: 6px; max-height: 400px; object-fit: contain; background: var(--surface2); }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .modal-info { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+
+    /* ── Confirm modal ── */
+    #confirm-modal p { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+    #confirm-modal strong { color: var(--text); }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 200;
+    }
+    .toast {
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      animation: slide-in .2s ease;
+      max-width: 300px;
+    }
+    .toast-success { background: #1a3a22; color: #4ade80; border: 1px solid #2d5c38; }
+    .toast-error   { background: #3a1a1a; color: #f87171; border: 1px solid #5c2d2d; }
+    @keyframes slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    /* ── Loading ── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-row td { text-align: center; padding: 40px; }
+  </style>
+</head>
+<body>
+
+<!-- Auth wall -->
+<div id="auth-wall" style="display:none">
+  <div class="icon">🔒</div>
+  <h2>Access Denied</h2>
+  <p id="auth-wall-msg">You must be logged in as an admin to view this page.</p>
+</div>
+
+<!-- App shell -->
+<div id="app" style="display:none; width:100%; display:flex; flex-direction:row">
+  <aside class="sidebar">
+    <div class="sidebar-logo">Lifelines<span>Admin Panel</span></div>
+    <nav>
+      <div class="nav-item active" data-tab="users">
+        <span class="nav-icon">👥</span> Users
+      </div>
+      <div class="nav-item" data-tab="lifeliners">
+        <span class="nav-icon">💚</span> Lifeliners
+      </div>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <strong id="admin-email">—</strong>
+        <span>Administrator</span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <span class="topbar-title" id="topbar-title">Users</span>
+    </div>
+
+    <div class="content">
+      <!-- Users tab -->
+      <div id="tab-users">
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value" id="stat-users">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Lifeliners</div>
+            <div class="stat-value" id="stat-lifeliners-count">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Clients</div>
+            <div class="stat-value" id="stat-clients">—</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <div class="table-header">
+            <h2>All Users</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Lifeliner</th>
+                <th>Joined</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+          <div class="pagination">
+            <span id="users-page-info"></span>
+            <div class="pagination-btns">
+              <button class="btn btn-ghost" id="users-prev">← Prev</button>
+              <button class="btn btn-ghost" id="users-next">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lifeliners tab -->
+      <div id="tab-lifeliners" style="display:none">
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-label">Total Lifeliners</div>
+            <div class="stat-value" id="stat-lifeliners">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Verified</div>
+            <div class="stat-value" id="stat-verified">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Unverified</div>
+            <div class="stat-value" id="stat-unverified">—</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <div class="table-header">
+            <h2>All Lifeliners</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Display Name</th>
+                <th>Full Name</th>
+                <th>Age</th>
+                <th>Age Groups</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="lifeliners-tbody"></tbody>
+          </table>
+          <div class="pagination">
+            <span id="lifeliners-page-info"></span>
+            <div class="pagination-btns">
+              <button class="btn btn-ghost" id="lifeliners-prev">← Prev</button>
+              <button class="btn btn-ghost" id="lifeliners-next">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Photo modal -->
+<div class="modal-overlay" id="photo-modal">
+  <div class="modal">
+    <h3>Verification Photo</h3>
+    <div class="modal-info" id="photo-modal-name"></div>
+    <img class="modal-photo" id="photo-modal-img" src="" alt="Verification photo" />
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('photo-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <h3 id="confirm-title">Confirm Action</h3>
+    <p id="confirm-msg"></p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+const API = '';  // same origin
+
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  usersPage: 1,  usersTotal: 0,  usersPages: 1,
+  lifelinersPage: 1, lifelinersTotal: 0, lifelinersPages: 1,
+  activeTab: 'users',
+  allLifeliners: [],  // for verified counts
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function confirm(title, msg) {
+  return new Promise(resolve => {
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-msg').textContent = msg;
+    openModal('confirm-modal');
+    const ok = document.getElementById('confirm-ok');
+    const handler = () => { closeModal('confirm-modal'); ok.removeEventListener('click', handler); resolve(true); };
+    ok.addEventListener('click', handler);
+  });
+}
+
+async function api(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    credentials: 'include',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function roleBadge(role) {
+  if (!role) return `<span class="badge badge-none">—</span>`;
+  const cls = { CLIENT: 'badge-client', LIFELINER: 'badge-lifeliner', ADMIN: 'badge-admin' }[role] || 'badge-none';
+  return `<span class="badge ${cls}">${role}</span>`;
+}
+
+function loadingRow(cols) {
+  return `<tr class="loading-row"><td colspan="${cols}"><div class="spinner"></div></td></tr>`;
+}
+
+function emptyRow(cols, msg = 'No records found') {
+  return `<tr class="empty-row"><td colspan="${cols}">${msg}</td></tr>`;
+}
+
+// ── Auth check ─────────────────────────────────────────────────────────────
+async function checkAuth() {
+  try {
+    const user = await api('GET', '/auth/me');
+    if (user.role !== 'ADMIN') throw new Error('Not an admin');
+    document.getElementById('admin-email').textContent = user.email;
+    document.getElementById('app').style.display = '';
+  } catch {
+    document.getElementById('auth-wall').style.display = 'flex';
+  }
+}
+
+// ── Users ──────────────────────────────────────────────────────────────────
+async function loadUsers(page = 1) {
+  state.usersPage = page;
+  const tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = loadingRow(5);
+
+  try {
+    const res = await api('GET', `/admin/users?page=${page}&limit=20`);
+    state.usersTotal = res.total;
+    state.usersPages = res.totalPages;
+
+    // Stats
+    document.getElementById('stat-users').textContent = res.total;
+    const lifCount = res.data.filter(u => u.role === 'LIFELINER').length;
+    const cliCount = res.data.filter(u => u.role === 'CLIENT').length;
+    // These are page counts — for now show totals from a rough estimate via full data
+    document.getElementById('stat-lifeliners-count').textContent = '—';
+    document.getElementById('stat-clients').textContent = '—';
+
+    updatePagination('users', res.page, res.totalPages, res.total, 20);
+
+    if (!res.data.length) { tbody.innerHTML = emptyRow(5); return; }
+
+    tbody.innerHTML = res.data.map(u => `
+      <tr data-id="${u.id}">
+        <td>${u.email}</td>
+        <td>${roleBadge(u.role)}</td>
+        <td>${u.lifeliner
+          ? `<span style="font-size:12px">${u.lifeliner.display_name || '—'}
+             ${u.lifeliner.is_verified ? '<span class="badge badge-verified">✓ verified</span>' : ''}</span>`
+          : '<span class="badge badge-none">none</span>'}</td>
+        <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
+        <td><div class="actions">
+          <button class="btn btn-danger" onclick="deleteUser('${u.id}', '${u.email}')">Delete</button>
+        </div></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = emptyRow(5, e.message);
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteUser(id, email) {
+  await confirm('Delete User', `Permanently delete "${email}"? This also removes their lifeliner profile.`);
+  try {
+    await api('DELETE', `/admin/users/${id}`);
+    toast(`User ${email} deleted`);
+    loadUsers(state.usersPage);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ── Lifeliners ─────────────────────────────────────────────────────────────
+async function loadLifeliners(page = 1) {
+  state.lifelinersPage = page;
+  const tbody = document.getElementById('lifeliners-tbody');
+  tbody.innerHTML = loadingRow(6);
+
+  try {
+    const res = await api('GET', `/admin/lifeliners?page=${page}&limit=20`);
+    state.lifelinersTotal = res.total;
+    state.lifelinersPages = res.totalPages;
+
+    const verified = res.data.filter(l => l.is_verified).length;
+    document.getElementById('stat-lifeliners').textContent = res.total;
+    document.getElementById('stat-verified').textContent = verified;
+    document.getElementById('stat-unverified').textContent = res.total - verified;
+
+    updatePagination('lifeliners', res.page, res.totalPages, res.total, 20);
+
+    if (!res.data.length) { tbody.innerHTML = emptyRow(6); return; }
+
+    tbody.innerHTML = res.data.map(l => `
+      <tr data-id="${l.id}">
+        <td><strong>${l.display_name || '—'}</strong></td>
+        <td style="color:var(--muted)">${l.full_name || '—'}</td>
+        <td>${l.age}</td>
+        <td style="font-size:11px;color:var(--muted)">${(l.age_groups || []).join(', ') || '—'}</td>
+        <td>
+          <span class="badge ${l.is_verified ? 'badge-verified' : 'badge-unverified'}">
+            ${l.is_verified ? '✓ verified' : '✗ unverified'}
+          </span>
+        </td>
+        <td><div class="actions">
+          <button class="btn ${l.is_verified ? 'btn-ghost' : 'btn-success'}" onclick="toggleVerify('${l.id}', '${l.display_name}', ${l.is_verified})">
+            ${l.is_verified ? 'Unverify' : 'Verify'}
+          </button>
+          ${l.private_picture
+            ? `<button class="btn btn-ghost" onclick="viewPhoto('${l.id}', '${l.display_name}')">Photo</button>`
+            : `<button class="btn btn-ghost" disabled>No photo</button>`}
+          <button class="btn btn-danger" onclick="deleteLifeliner('${l.id}', '${l.display_name}')">Delete</button>
+        </div></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = emptyRow(6, e.message);
+    toast(e.message, 'error');
+  }
+}
+
+async function toggleVerify(id, name, current) {
+  try {
+    await api('PATCH', `/admin/lifeliners/${id}/verify`);
+    toast(`${name} ${current ? 'unverified' : 'verified'}`);
+    loadLifeliners(state.lifelinersPage);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteLifeliner(id, name) {
+  await confirm('Delete Lifeliner', `Remove the lifeliner profile for "${name}"? The user account will be kept.`);
+  try {
+    await api('DELETE', `/admin/lifeliners/${id}`);
+    toast(`Lifeliner "${name}" removed`);
+    loadLifeliners(state.lifelinersPage);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function viewPhoto(id, name) {
+  document.getElementById('photo-modal-name').textContent = name;
+  // Set src to the streaming endpoint — cookie is sent automatically by the browser
+  document.getElementById('photo-modal-img').src = `/admin/lifeliners/${id}/verification-photo?t=${Date.now()}`;
+  openModal('photo-modal');
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+function updatePagination(key, page, totalPages, total, limit) {
+  const start = (page - 1) * limit + 1;
+  const end   = Math.min(page * limit, total);
+  document.getElementById(`${key}-page-info`).textContent =
+    total ? `${start}–${end} of ${total}` : '0 results';
+  document.getElementById(`${key}-prev`).disabled = page <= 1;
+  document.getElementById(`${key}-next`).disabled = page >= totalPages;
+}
+
+document.getElementById('users-prev').addEventListener('click', () => loadUsers(state.usersPage - 1));
+document.getElementById('users-next').addEventListener('click', () => loadUsers(state.usersPage + 1));
+document.getElementById('lifeliners-prev').addEventListener('click', () => loadLifeliners(state.lifelinersPage - 1));
+document.getElementById('lifeliners-next').addEventListener('click', () => loadLifeliners(state.lifelinersPage + 1));
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item[data-tab]').forEach(item => {
+  item.addEventListener('click', () => {
+    const tab = item.dataset.tab;
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('tab-users').style.display      = tab === 'users'      ? '' : 'none';
+    document.getElementById('tab-lifeliners').style.display = tab === 'lifeliners' ? '' : 'none';
+    document.getElementById('topbar-title').textContent     = tab === 'users' ? 'Users' : 'Lifeliners';
+    if (tab === 'lifeliners' && state.lifelinersPage === 1) loadLifeliners(1);
+  });
+});
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(async () => {
+  await checkAuth();
+  if (document.getElementById('app').style.display !== 'none') {
+    loadUsers(1);
+  }
+})();
+</script>
+</body>
+</html>

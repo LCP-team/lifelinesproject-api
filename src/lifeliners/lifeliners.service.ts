@@ -24,6 +24,7 @@ const PUBLIC_SELECT = {
   profile_picture: true,
   about_me: true,
   age_groups: true,
+  is_verified: true,
   created_at: true,
 } as const;
 
@@ -38,6 +39,7 @@ export class LifelinersService {
     const { age_groups, search, min_age, max_age, page = 1, limit = 20 } = dto;
 
     const where: Prisma.LifelinerWhereInput = {
+      is_verified: true,
       ...(age_groups?.length && { age_groups: { hasSome: age_groups } }),
       ...(search?.trim() && {
         display_name: { contains: search.trim(), mode: 'insensitive' },
