@@ -43,7 +43,7 @@ export class AuthController {
           httpOnly: true,
           signed: true,
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
           maxAge: 60 * 60 * 24 * 7,
           domain:
             process.env.NODE_ENV === 'production'
@@ -69,20 +69,18 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Res() res: Response) {
-    res
-      .clearCookie('access_token', {
-        path: '/',
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 0,
-        domain:
-          process.env.NODE_ENV === 'production'
-            ? '.lifelinesproject.com'
-            : undefined,
-      })
-      .status(HttpStatus.NO_CONTENT)
-      .send();
+  @HttpCode(HttpStatus.NO_CONTENT)
+  logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie('access_token', {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 0,
+      domain:
+        process.env.NODE_ENV === 'production'
+          ? '.lifelinesproject.com'
+          : undefined,
+    });
   }
 }

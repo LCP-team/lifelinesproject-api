@@ -8,14 +8,14 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  app.useStaticAssets(join(process.cwd(), 'uploads', 'public'), {
-    prefix: '/uploads/public',
-  });
   app.enableCors({
     origin: true,
     credentials: true,
   });
   app.use(cookieParser(process.env.COOKIE_SECRET));
+  app.useStaticAssets(join(process.cwd(), 'uploads', 'public'), {
+    prefix: '/uploads/public',
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
