@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Lifelines Project API",
-    "description": "REST API for a directory of volunteer mental health providers. Users authenticate via Google OAuth and register as a Client (seeking support) or a Lifeliner (volunteer provider).",
+    "description": "REST API for a directory of volunteer mental health providers. Users authenticate via Google OAuth and register as a Client (seeking support) or a Lifeliner (volunteer provider). Authentication is cookie-based: a signed HttpOnly `access_token` cookie is set on login and read on every protected request.",
     "version": "0.0.1"
   },
   "servers": [
@@ -13,10 +13,11 @@
   ],
   "components": {
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token",
+        "description": "Signed HttpOnly cookie set by `GET /auth/google/callback`. Send requests with `credentials: 'include'` (fetch) or `withCredentials: true` (axios)."
       }
     },
     "schemas": {
@@ -43,17 +44,6 @@
         },
         "required": ["id", "email", "role"]
       },
-      "LoginResponse": {
-        "type": "object",
-        "properties": {
-          "access_token": {
-            "type": "string",
-            "description": "Signed JWT. Pass as `Authorization: Bearer <token>` on protected endpoints.",
-            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-          }
-        },
-        "required": ["access_token"]
-      },
       "PublicLifeliner": {
         "type": "object",
         "description": "Lifeliner fields safe for public consumption. Never includes full_name, private_picture, or user_id.",
@@ -64,7 +54,8 @@
           "profile_picture": {
             "type": "string",
             "format": "uri",
-            "example": "https://cdn.example.com/profiles/alex.jpg"
+            "nullable": true,
+            "example": "/uploads/public/profile-pictures/cm9abc123-1711900000000.jpg"
           },
           "about_me": {
             "type": "string",
@@ -89,7 +80,7 @@
       },
       "Lifeliner": {
         "type": "object",
-        "description": "Full lifeliner record returned to the owner after create/update.",
+        "description": "Full lifeliner record returned to the owner. Includes private fields never exposed publicly.",
         "allOf": [
           { "$ref": "#/components/schemas/PublicLifeliner" },
           {
@@ -102,17 +93,12 @@
               },
               "private_picture": {
                 "type": "string",
-                "format": "uri",
-                "description": "Verification photo. Never returned on public endpoints."
+                "description": "Path to verification photo. Use `GET /lifeliners/private/verification-photo` to stream the file.",
+                "example": "/lifeliners/private/verification-photo"
               },
               "updated_at": { "type": "string", "format": "date-time" }
             },
-            "required": [
-              "user_id",
-              "full_name",
-              "private_picture",
-              "updated_at"
-            ]
+            "required": ["user_id", "full_name", "private_picture", "updated_at"]
           }
         ]
       },
@@ -127,16 +113,6 @@
             "maximum": 120,
             "example": 29
           },
-          "private_picture": {
-            "type": "string",
-            "format": "uri",
-            "description": "Verification photo URL. Not exposed publicly."
-          },
-          "profile_picture": {
-            "type": "string",
-            "format": "uri",
-            "description": "Public profile photo URL."
-          },
           "about_me": {
             "type": "string",
             "example": "I'm a trained listener who loves supporting young adults."
@@ -148,15 +124,7 @@
             "example": ["YOUNG_ADULTS", "ADULTS"]
           }
         },
-        "required": [
-          "full_name",
-          "display_name",
-          "age",
-          "private_picture",
-          "profile_picture",
-          "about_me",
-          "age_groups"
-        ]
+        "required": ["full_name", "display_name", "age", "about_me", "age_groups"]
       },
       "UpdateLifelinerBody": {
         "type": "object",
@@ -165,8 +133,6 @@
           "full_name": { "type": "string" },
           "display_name": { "type": "string" },
           "age": { "type": "integer", "minimum": 18, "maximum": 120 },
-          "private_picture": { "type": "string", "format": "uri" },
-          "profile_picture": { "type": "string", "format": "uri" },
           "about_me": { "type": "string" },
           "age_groups": {
             "type": "array",
@@ -175,16 +141,28 @@
           }
         }
       },
+      "SelectRoleBody": {
+        "type": "object",
+        "properties": {
+          "role": { "$ref": "#/components/schemas/Role" }
+        },
+        "required": ["role"]
+      },
       "ValidationError": {
         "type": "object",
         "properties": {
           "statusCode": { "type": "integer", "example": 400 },
           "message": {
-            "type": "array",
-            "items": { "type": "string" },
-            "example": [
-              "age must not be less than 18",
-              "age_groups must contain at least 1 elements"
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "array",
+                "items": { "type": "string" },
+                "example": [
+                  "age must not be less than 18",
+                  "age_groups must contain at least 1 elements"
+                ]
+              }
             ]
           },
           "error": { "type": "string", "example": "Bad Request" }
@@ -201,7 +179,7 @@
     },
     "responses": {
       "Unauthorized": {
-        "description": "Missing or invalid JWT token.",
+        "description": "Missing or invalid `access_token` cookie.",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -219,7 +197,7 @@
         }
       },
       "NotFound": {
-        "description": "Lifeliner not found.",
+        "description": "Resource not found.",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -234,17 +212,30 @@
     }
   },
   "paths": {
+    "/auth/google": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Initiate Google OAuth",
+        "description": "Redirects the browser to Google's consent screen. Not called via fetch — navigate the browser directly to this URL.",
+        "responses": {
+          "302": { "description": "Redirect to Google." }
+        }
+      }
+    },
     "/auth/google/callback": {
       "get": {
         "tags": ["Auth"],
         "summary": "Google OAuth callback",
-        "description": "Google redirects here after the user grants access. Creates the user account on first login (or links the provider to an existing account matched by email). Returns a signed JWT.",
+        "description": "Google redirects here after the user grants access. Creates the user account on first login (or links the provider to an existing account matched by email). Sets a signed HttpOnly `access_token` cookie, then redirects to `CLIENT_URL/`.",
         "responses": {
-          "200": {
-            "description": "JWT issued successfully.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+          "302": {
+            "description": "Login successful — redirects to the client app. The `access_token` cookie is set on this response.",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string",
+                  "example": "access_token=<signed-jwt>; Path=/; HttpOnly; SameSite=Lax"
+                }
               }
             }
           }
@@ -255,8 +246,8 @@
       "get": {
         "tags": ["Auth"],
         "summary": "Get current user",
-        "description": "Returns the identity decoded from the JWT. No database round-trip.",
-        "security": [{ "bearerAuth": [] }],
+        "description": "Returns the identity decoded from the JWT cookie.",
+        "security": [{ "cookieAuth": [] }],
         "responses": {
           "200": {
             "description": "Current authenticated user.",
@@ -270,23 +261,103 @@
         }
       }
     },
+    "/auth/role": {
+      "patch": {
+        "tags": ["Auth"],
+        "summary": "Select role",
+        "description": "Sets the role for the authenticated user. Can only be called once — once a role is set, this returns 403.",
+        "security": [{ "cookieAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SelectRoleBody" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated. Returns the updated user.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthUser" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationError" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout",
+        "description": "Clears the `access_token` cookie. Returns 204 with no body.",
+        "responses": {
+          "204": { "description": "Cookie cleared. User is logged out." }
+        }
+      }
+    },
     "/lifeliners": {
       "get": {
         "tags": ["Lifeliners"],
         "summary": "List lifeliners (public)",
-        "description": "Returns all published lifeliner profiles. Optionally filter by one or more age groups. Never returns private_picture or full_name.",
+        "description": "Returns paginated public lifeliner profiles. All filters are optional and combinable. Never returns `private_picture` or `full_name`.",
         "parameters": [
           {
             "name": "age_groups",
             "in": "query",
             "required": false,
-            "description": "Filter by supported age groups. Repeat the param for multiple values: `?age_groups=TEENS&age_groups=ADULTS`",
+            "description": "Filter to lifeliners who support at least one of the given age groups. Repeat for multiple: `?age_groups=TEENS&age_groups=ADULTS`",
             "schema": {
               "type": "array",
               "items": { "$ref": "#/components/schemas/AgeGroup" }
             },
             "style": "form",
             "explode": true
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match on `display_name`.",
+            "schema": { "type": "string", "example": "alex" }
+          },
+          {
+            "name": "min_age",
+            "in": "query",
+            "required": false,
+            "description": "Minimum lifeliner age (inclusive). Must be between 18 and 120.",
+            "schema": { "type": "integer", "minimum": 18, "maximum": 120, "example": 20 }
+          },
+          {
+            "name": "max_age",
+            "in": "query",
+            "required": false,
+            "description": "Maximum lifeliner age (inclusive). Must be between 18 and 120.",
+            "schema": { "type": "integer", "minimum": 18, "maximum": 120, "example": 40 }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number (1-based). Defaults to 1.",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Results per page. Defaults to 20, max 100.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
           }
         ],
         "responses": {
@@ -302,7 +373,7 @@
             }
           },
           "400": {
-            "description": "Invalid age_groups value.",
+            "description": "Invalid query parameter.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ValidationError" }
@@ -314,8 +385,8 @@
       "post": {
         "tags": ["Lifeliners"],
         "summary": "Create lifeliner profile",
-        "description": "Creates the caller's lifeliner profile. Requires a JWT with role `LIFELINER`. Each user can only have one profile.",
-        "security": [{ "bearerAuth": [] }],
+        "description": "Creates the caller's lifeliner profile. Requires role `LIFELINER`. Each user can only have one profile.",
+        "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -326,7 +397,7 @@
         },
         "responses": {
           "201": {
-            "description": "Profile created. Returns the full lifeliner record (including private fields) for the owner.",
+            "description": "Profile created. Returns the full lifeliner record.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Lifeliner" }
@@ -357,47 +428,12 @@
             }
           }
         }
-      }
-    },
-    "/lifeliners/{id}": {
-      "get": {
-        "tags": ["Lifeliners"],
-        "summary": "Get lifeliner profile (public)",
-        "description": "Returns a single lifeliner's public profile. Never returns private_picture or full_name.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" },
-            "example": "cm9xyz789"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Public lifeliner profile.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/PublicLifeliner" }
-              }
-            }
-          },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
       },
       "patch": {
         "tags": ["Lifeliners"],
-        "summary": "Update lifeliner profile",
-        "description": "Partially updates the lifeliner profile. Requires JWT with role `LIFELINER`. Only the profile owner can update.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
+        "summary": "Update own lifeliner profile",
+        "description": "Partially updates the caller's lifeliner profile. Requires role `LIFELINER`. The profile is identified by the JWT — no ID param needed.",
+        "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -427,22 +463,176 @@
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
-      },
-      "delete": {
+      }
+    },
+    "/lifeliners/me": {
+      "get": {
         "tags": ["Lifeliners"],
-        "summary": "Delete lifeliner profile",
-        "description": "Deletes the lifeliner profile. Requires JWT with role `LIFELINER`. Only the profile owner can delete.",
-        "security": [{ "bearerAuth": [] }],
+        "summary": "Get own lifeliner profile",
+        "description": "Returns the full lifeliner record for the authenticated user, including private fields (`full_name`, `private_picture`). Requires role `LIFELINER`.",
+        "security": [{ "cookieAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Full lifeliner record for the caller.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Lifeliner" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/lifeliners/private/verification-photo": {
+      "get": {
+        "tags": ["Lifeliners"],
+        "summary": "Get own verification photo",
+        "description": "Streams the caller's verification photo. Only the owning lifeliner can access this. Requires role `LIFELINER`.",
+        "security": [{ "cookieAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Image file stream.",
+            "content": {
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {}
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/lifeliners/{id}": {
+      "get": {
+        "tags": ["Lifeliners"],
+        "summary": "Get lifeliner profile (public)",
+        "description": "Returns a single lifeliner's public profile. Never returns `private_picture` or `full_name`.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string" },
+            "example": "cm9xyz789"
           }
         ],
         "responses": {
-          "204": { "description": "Profile deleted successfully." },
+          "200": {
+            "description": "Public lifeliner profile.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicLifeliner" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/lifeliners/upload/profile-picture": {
+      "post": {
+        "tags": ["Lifeliners"],
+        "summary": "Upload profile picture",
+        "description": "Replaces the caller's public profile picture. Accepted formats: JPEG, PNG, WebP. Max size: 5 MB. Requires role `LIFELINER`.",
+        "security": [{ "cookieAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Picture updated. Returns the updated id and profile_picture URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "profile_picture": { "type": "string", "format": "uri" }
+                  },
+                  "required": ["id", "profile_picture"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No file provided or unsupported format.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/lifeliners/upload/verification-photo": {
+      "post": {
+        "tags": ["Lifeliners"],
+        "summary": "Upload verification photo",
+        "description": "Replaces the caller's private verification photo. Accepted formats: JPEG, PNG, WebP. Max size: 5 MB. Requires role `LIFELINER`. This file is never exposed publicly.",
+        "security": [{ "cookieAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Verification photo updated. Returns the lifeliner id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" }
+                  },
+                  "required": ["id"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No file provided or unsupported format.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" }
@@ -453,7 +643,7 @@
   "tags": [
     {
       "name": "Auth",
-      "description": "Google OAuth login and current-user endpoint"
+      "description": "Google OAuth login, role selection, and session management"
     },
     {
       "name": "Lifeliners",

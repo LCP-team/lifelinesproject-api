@@ -12,6 +12,7 @@ import {
   VERIFICATION_PHOTOS_DIR,
 } from '../storage/storage.service';
 import { CreateLifelinerDto } from './dto/create-lifeliner.dto';
+import { FilterLifelinersDto } from './dto/filter-lifeliners.dto';
 import { UpdateLifelinerDto } from './dto/update-lifeliner.dto';
 import { AgeGroup, Prisma } from '@prisma/client';
 
@@ -33,13 +34,28 @@ export class LifelinersService {
     private readonly storage: StorageService,
   ) {}
 
-  findAll(ageGroups?: AgeGroup[]) {
+  findAll(dto: FilterLifelinersDto) {
+    const { age_groups, search, min_age, max_age, page = 1, limit = 20 } = dto;
+
+    const where: Prisma.LifelinerWhereInput = {
+      ...(age_groups?.length && { age_groups: { hasSome: age_groups } }),
+      ...(search && {
+        display_name: { contains: search, mode: 'insensitive' },
+      }),
+      ...((min_age !== undefined || max_age !== undefined) && {
+        age: {
+          ...(min_age !== undefined && { gte: min_age }),
+          ...(max_age !== undefined && { lte: max_age }),
+        },
+      }),
+    };
+
     return this.prisma.lifeliner.findMany({
-      where: ageGroups?.length
-        ? { age_groups: { hasSome: ageGroups } }
-        : undefined,
+      where,
       select: PUBLIC_SELECT,
       orderBy: { created_at: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 

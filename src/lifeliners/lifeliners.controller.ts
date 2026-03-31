@@ -59,7 +59,7 @@ export class LifelinersController {
 
   @Get()
   findAll(@Query() query: FilterLifelinersDto) {
-    return this.lifelinersService.findAll(query.age_groups);
+    return this.lifelinersService.findAll(query);
   }
 
   @Get('me')
