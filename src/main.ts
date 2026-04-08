@@ -11,9 +11,6 @@ async function bootstrap() {
 
   app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/admin' });
   app.use(cookieParser(process.env.COOKIE_SECRET));
-  app.useStaticAssets(join(process.cwd(), 'uploads', 'public'), {
-    prefix: '/uploads/public',
-  });
 
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalPipes(

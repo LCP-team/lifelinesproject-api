@@ -13,7 +13,9 @@ export class AdminService {
           email: true,
           role: true,
           created_at: true,
-          lifeliner: { select: { id: true, display_name: true, is_verified: true } },
+          lifeliner: {
+            select: { id: true, display_name: true, is_verified: true },
+          },
         },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * limit,

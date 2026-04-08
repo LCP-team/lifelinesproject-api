@@ -1,15 +1,14 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { join } from 'path';
+import { extname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  PROFILE_PICTURES_DIR,
+  PROFILE_PICTURES_PREFIX,
   StorageService,
-  VERIFICATION_PHOTOS_DIR,
+  VERIFICATION_PHOTOS_PREFIX,
 } from '../storage/storage.service';
 import { CreateLifelinerDto } from './dto/create-lifeliner.dto';
 import { FilterLifelinersDto } from './dto/filter-lifeliners.dto';
@@ -107,7 +106,7 @@ export class LifelinersService {
     });
   }
 
-  async update(id: string, userId: string, dto: UpdateLifelinerDto) {
+  async update(id: string, _userId: string, dto: UpdateLifelinerDto) {
     const lifeliner = await this.prisma.lifeliner.findUnique({ where: { id } });
     if (!lifeliner) throw new NotFoundException('Lifeliner not found');
     // if (lifeliner.user_id !== userId) throw new ForbiddenException();
@@ -115,28 +114,36 @@ export class LifelinersService {
     return this.prisma.lifeliner.update({ where: { id }, data: dto });
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string) {
     const lifeliner = await this.prisma.lifeliner.findUnique({ where: { id } });
     if (!lifeliner) throw new NotFoundException('Lifeliner not found');
-    // if (lifeliner.user_id !== userId) throw new ForbiddenException();
 
     await this.prisma.lifeliner.delete({ where: { id } });
   }
 
-  async updateProfilePicture(userId: string, filename: string) {
+  async updateProfilePicture(
+    userId: string,
+    buffer: Buffer,
+    contentType: string,
+    originalName: string,
+  ) {
     const lifeliner = await this.prisma.lifeliner.findUnique({
       where: { user_id: userId },
       select: { id: true, profile_picture: true },
     });
     if (!lifeliner) throw new NotFoundException('Lifeliner not found');
 
-    // Delete old file if it exists
+    // Delete old file from GCS if it exists
     if (lifeliner.profile_picture) {
-      const oldFilename = lifeliner.profile_picture.split('/').pop()!;
-      await this.storage.deleteFile(join(PROFILE_PICTURES_DIR, oldFilename));
+      const oldPath = this.extractGcsPath(lifeliner.profile_picture);
+      if (oldPath) await this.storage.deleteFile(oldPath);
     }
 
-    const publicUrl = `/uploads/public/profile-pictures/${filename}`;
+    const ext = extname(originalName);
+    const destination = `${PROFILE_PICTURES_PREFIX}/${userId}-${Date.now()}${ext}`;
+    await this.storage.upload(destination, buffer, contentType);
+    const publicUrl = this.storage.getPublicUrl(destination);
+
     return this.prisma.lifeliner.update({
       where: { user_id: userId },
       data: { profile_picture: publicUrl },
@@ -144,28 +151,35 @@ export class LifelinersService {
     });
   }
 
-  async updateVerificationPhoto(userId: string, filename: string) {
+  async updateVerificationPhoto(
+    userId: string,
+    buffer: Buffer,
+    contentType: string,
+    originalName: string,
+  ) {
     const lifeliner = await this.prisma.lifeliner.findUnique({
       where: { user_id: userId },
       select: { id: true, private_picture: true },
     });
     if (!lifeliner) throw new NotFoundException('Lifeliner not found');
 
-    // Delete old file if it exists
+    // Delete old file from GCS if it exists
     if (lifeliner.private_picture) {
-      const oldFilename = lifeliner.private_picture.split('/').pop()!;
-      await this.storage.deleteFile(join(VERIFICATION_PHOTOS_DIR, oldFilename));
+      await this.storage.deleteFile(lifeliner.private_picture);
     }
 
-    const filePath = join(VERIFICATION_PHOTOS_DIR, filename);
+    const ext = extname(originalName);
+    const destination = `${VERIFICATION_PHOTOS_PREFIX}/${userId}-${Date.now()}${ext}`;
+    await this.storage.upload(destination, buffer, contentType);
+
     return this.prisma.lifeliner.update({
       where: { user_id: userId },
-      data: { private_picture: filePath },
+      data: { private_picture: destination },
       select: { id: true },
     });
   }
 
-  async getVerificationPhotoPath(userId: string): Promise<string> {
+  async getVerificationPhotoUrl(userId: string): Promise<{ url: string }> {
     const lifeliner = await this.prisma.lifeliner.findUnique({
       where: { user_id: userId },
       select: { private_picture: true },
@@ -173,6 +187,17 @@ export class LifelinersService {
     if (!lifeliner) throw new NotFoundException('Lifeliner not found');
     if (!lifeliner.private_picture)
       throw new NotFoundException('No verification photo uploaded');
-    return lifeliner.private_picture;
+
+    const url = await this.storage.getSignedUrl(lifeliner.private_picture);
+    return { url };
+  }
+
+  private extractGcsPath(url: string): string | null {
+    const prefix = `https://storage.googleapis.com/`;
+    if (!url.startsWith(prefix)) return null;
+    const withoutPrefix = url.slice(prefix.length);
+    const firstSlash = withoutPrefix.indexOf('/');
+    if (firstSlash === -1) return null;
+    return withoutPrefix.slice(firstSlash + 1);
   }
 }
