@@ -120,7 +120,7 @@ export class LifelinersController {
   @Roles(Role.LIFELINER)
   async getVerificationPhoto(
     @CurrentUser() user: AuthUser,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
   ) {
     const { stream, contentType } =
       await this.lifelinersService.getVerificationPhoto(user.id);
