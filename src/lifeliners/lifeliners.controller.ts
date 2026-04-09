@@ -7,10 +7,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -116,7 +118,13 @@ export class LifelinersController {
   @Get('private/verification-photo')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIFELINER)
-  async getVerificationPhoto(@CurrentUser() user: AuthUser) {
-    return this.lifelinersService.getVerificationPhotoUrl(user.id);
+  async getVerificationPhoto(
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { stream, contentType } =
+      await this.lifelinersService.getVerificationPhoto(user.id);
+    res.setHeader('Content-Type', contentType);
+    stream.pipe(res);
   }
 }

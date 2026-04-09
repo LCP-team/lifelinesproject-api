@@ -51,4 +51,16 @@ export class StorageService {
     });
     return url;
   }
+
+  async download(filePath: string): Promise<{
+    stream: NodeJS.ReadableStream;
+    contentType: string;
+  }> {
+    const file = this.bucket.file(this.prefix(filePath));
+    const [metadata] = await file.getMetadata();
+    return {
+      stream: file.createReadStream(),
+      contentType: metadata.contentType ?? 'application/octet-stream',
+    };
+  }
 }

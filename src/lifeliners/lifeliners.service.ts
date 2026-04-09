@@ -179,7 +179,10 @@ export class LifelinersService {
     });
   }
 
-  async getVerificationPhotoUrl(userId: string): Promise<{ url: string }> {
+  async getVerificationPhoto(userId: string): Promise<{
+    stream: NodeJS.ReadableStream;
+    contentType: string;
+  }> {
     const lifeliner = await this.prisma.lifeliner.findUnique({
       where: { user_id: userId },
       select: { private_picture: true },
@@ -188,8 +191,7 @@ export class LifelinersService {
     if (!lifeliner.private_picture)
       throw new NotFoundException('No verification photo uploaded');
 
-    const url = await this.storage.getSignedUrl(lifeliner.private_picture);
-    return { url };
+    return this.storage.download(lifeliner.private_picture);
   }
 
   private extractGcsPath(url: string): string | null {
