@@ -74,8 +74,25 @@ export class AuthController {
 
   @Patch('role')
   @UseGuards(JwtAuthGuard)
-  selectRole(@CurrentUser() user: AuthUser, @Body() dto: SelectRoleDto) {
-    return this.authService.selectRole(user.id, dto.role);
+  async selectRole(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SelectRoleDto,
+    @Res() res: Response,
+  ) {
+    const result = await this.authService.selectRole(user.id, dto.role);
+    const { access_token } = this.authService.login(result);
+    res.cookie('access_token', access_token, {
+      httpOnly: true,
+      signed: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      domain:
+        process.env.NODE_ENV === 'production'
+          ? '.lifelinesproject.com'
+          : undefined,
+    });
+    return result;
   }
 
   @Post('logout')
