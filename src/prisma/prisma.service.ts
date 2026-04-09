@@ -10,7 +10,8 @@ export class PrismaService
   constructor() {
     super({
       adapter: new PrismaPg({
-        connectionString: process.env.DATABASE_POSTGRES_URL_NO_SSL,
+        connectionString:
+          process.env.DATABASE_POSTGRES_PRISMA_URL || process.env.DATABASE_URL,
       }),
     });
   }
