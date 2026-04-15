@@ -1,7 +1,8 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 
-const ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With';
+const ALLOWED_HEADERS =
+  'Content-Type, Authorization, X-Requested-With, X-Trace-Id';
 const ALLOWED_METHODS = 'GET, HEAD, POST, PATCH, DELETE, OPTIONS';
 
 @Injectable()
