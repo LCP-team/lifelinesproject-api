@@ -57,7 +57,7 @@ export class AuthController {
           maxAge: 60 * 60 * 24 * 7,
           domain:
             process.env.NODE_ENV === 'production'
-              ? '.lifelinesproject.com'
+              ? '.sophiaathena.com'
               : undefined,
         })
         .redirect(destination);
@@ -89,7 +89,7 @@ export class AuthController {
       maxAge: 0,
       domain:
         process.env.NODE_ENV === 'production'
-          ? '.lifelinesproject.com'
+          ? '.sophiaathena.com'
           : undefined,
     });
   }
