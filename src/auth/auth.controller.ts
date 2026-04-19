@@ -40,6 +40,9 @@ export class AuthController {
       const { access_token } = this.authService.login(user);
 
       const clientUrl = this.configService.getOrThrow<string>('CLIENT_URL');
+      const isProduction = process.env.NODE_ENV === 'production';
+      const cookieDomain =
+        this.configService.get<string>('COOKIE_DOMAIN')?.trim() || undefined;
 
       const destination =
         user.role === 'ADMIN'
@@ -52,13 +55,10 @@ export class AuthController {
         .cookie('access_token', access_token, {
           httpOnly: true,
           signed: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          secure: isProduction,
+          sameSite: isProduction ? 'none' : 'lax',
           maxAge: 60 * 60 * 24 * 7,
-          domain:
-            process.env.NODE_ENV === 'production'
-              ? '.sophiaathena.com'
-              : undefined,
+          domain: cookieDomain,
         })
         .redirect(destination);
     } catch {
@@ -98,16 +98,17 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   logout(@Res({ passthrough: true }) res: Response) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieDomain =
+      this.configService.get<string>('COOKIE_DOMAIN')?.trim() || undefined;
+
     res.clearCookie('access_token', {
       path: '/',
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 0,
-      domain:
-        process.env.NODE_ENV === 'production'
-          ? '.sophiaathena.com'
-          : undefined,
+      domain: cookieDomain,
     });
   }
 }
