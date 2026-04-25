@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -74,6 +76,15 @@ export class LifelinersService {
     return lifeliner;
   }
 
+  async findOneByDisplayName(name: string) {
+    const lifeliner = await this.prisma.lifeliner.findFirst({
+      where: { display_name: name },
+      select: PUBLIC_SELECT,
+    });
+    if (!lifeliner) throw new NotFoundException('Lifeliner not found');
+    return lifeliner;
+  }
+
   async findForUser(userId: string) {
     const lifeliner = await this.prisma.lifeliner.findUnique({
       where: { user_id: userId },
@@ -106,12 +117,42 @@ export class LifelinersService {
     });
   }
 
+  isValidUsername(username) {
+    // Minimal 3 karakter, maksimal 20, hanya huruf/angka/underscore
+    const regex = /^[a-zA-Z0-9_]{3,20}$/;
+    return regex.test(username);
+  }
+
   async update(id: string, _userId: string, dto: UpdateLifelinerDto) {
     const lifeliner = await this.prisma.lifeliner.findUnique({ where: { id } });
     if (!lifeliner) throw new NotFoundException('Lifeliner not found');
-    // if (lifeliner.user_id !== userId) throw new ForbiddenException();
+    if (lifeliner.user_id !== _userId) throw new ForbiddenException();
 
-    return this.prisma.lifeliner.update({ where: { id }, data: dto });
+    dto.display_name = dto.display_name?.toLowerCase();
+    if (!this.isValidUsername(dto.display_name ?? '')) {
+      throw new BadRequestException(
+        'The display name is invalid. Please use 3-20 characters consisting of letters, numbers, or underscores only.',
+      );
+    }
+
+    try {
+      return await this.prisma.lifeliner.update({ where: { id }, data: dto });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code == 'P2002') {
+          if (
+            Array.isArray(e.meta?.target) &&
+            e.meta?.target[0] == 'display_name'
+          ) {
+            throw new BadRequestException(
+              'This display name is already in use. Please choose a different one.',
+            );
+          }
+        }
+      }
+
+      throw e;
+    }
   }
 
   async remove(id: string) {

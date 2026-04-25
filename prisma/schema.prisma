@@ -70,7 +70,7 @@ model Lifeliner {
   user_id         String     @unique
   user            User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
   full_name       String
-  display_name    String
+  display_name    String     @unique
   age             Int
   private_picture String // verification photo — never exposed publicly
   profile_picture String // public profile photo
@@ -81,4 +81,6 @@ model Lifeliner {
   updated_at      DateTime   @updatedAt
 
   @@map("lifeliners")
+  @@index([user_id])
+  @@index([display_name])
 }

@@ -63,12 +63,17 @@ export class LifelinersController {
     return this.lifelinersService.findOne(id);
   }
 
+  @Get('find/:name')
+  findByDisplayName(@Param('name') name: string) {
+    return this.lifelinersService.findOneByDisplayName(name);
+  }
+
   @Patch()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIFELINER)
   async update(@CurrentUser() user: AuthUser, @Body() dto: UpdateLifelinerDto) {
     const lifeliner = await this.lifelinersService.findForUser(user.id);
-    return this.lifelinersService.update(lifeliner.id, user.id, dto);
+    return this.lifelinersService.update(lifeliner.user_id, user.id, dto);
   }
 
   @Post('upload/profile-picture')
