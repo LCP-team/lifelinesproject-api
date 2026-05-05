@@ -6,6 +6,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { AiChatService } from './ai-chat.service';
+import { CreateAiChatSystemEntryDto } from './dto/create-ai-chat-system-entry.dto';
 import { SendAiChatMessageDto } from './dto/send-ai-chat-message.dto';
 import { StartAiChatSessionDto } from './dto/start-ai-chat-session.dto';
 
@@ -28,6 +30,17 @@ export class AiChatController {
   @Get('status')
   getStatus(@Headers('x-trace-id') traceId?: string) {
     return this.aiChatService.getStatus(traceId);
+  }
+
+  @Get('history')
+  getHistory(
+    @Req() req: Request,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+    @Headers('x-trace-id') traceId?: string,
+  ) {
+    const user = this.resolveUser(req);
+    return this.aiChatService.getHistory(user, { cursor, limit }, traceId);
   }
 
   @Post('session')
@@ -48,6 +61,16 @@ export class AiChatController {
   ) {
     const user = this.resolveUser(req);
     return this.aiChatService.sendMessage(user, dto, traceId);
+  }
+
+  @Post('timeline/system')
+  createSystemTimelineEntry(
+    @Req() req: Request,
+    @Body() dto: CreateAiChatSystemEntryDto,
+    @Headers('x-trace-id') traceId?: string,
+  ) {
+    const user = this.resolveUser(req);
+    return this.aiChatService.createSystemTimelineEntry(user, dto, traceId);
   }
 
   @Delete('session/:sessionId')

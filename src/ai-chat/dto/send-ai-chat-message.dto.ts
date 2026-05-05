@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -27,4 +28,8 @@ export class SendAiChatMessageDto {
   @IsOptional()
   @IsIn(['en', 'ind'])
   language: 'en' | 'ind' = 'en';
+
+  @IsOptional()
+  @IsBoolean()
+  memoryEnabled = true;
 }

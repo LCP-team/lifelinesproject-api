@@ -43,11 +43,59 @@ type AiChatGatewayResponse = {
   };
 };
 
+type AiServiceHistoryItem = {
+  id?: unknown;
+  role?: unknown;
+  content?: unknown;
+  recorded_at?: unknown;
+  session_id?: unknown;
+  boundary_type?: unknown;
+};
+
+type AiServiceSystemEntryEnvelope = {
+  status?: string;
+  data?: AiServiceHistoryItem;
+  message?: unknown;
+};
+
+type AiServiceHistoryEnvelope = {
+  status?: string;
+  data?: {
+    items?: AiServiceHistoryItem[];
+    next_cursor?: unknown;
+    active_session_id?: unknown;
+  };
+  message?: unknown;
+};
+
+type AiChatHistoryItem = {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  recordedAt: string;
+  sessionId: string | null;
+  boundaryType: string | null;
+};
+
+type AiChatHistoryResponse = {
+  items: AiChatHistoryItem[];
+  nextCursor: string | null;
+  activeSessionId: string | null;
+  traceId: string;
+  recordedAt: string;
+};
+
 type AiChatClosedResponse = {
   sessionId: string;
   traceId: string;
   recordedAt: string;
   status: 'closed';
+};
+
+type AiChatSystemEntryResponse = {
+  item: AiChatHistoryItem;
+  traceId: string;
+  recordedAt: string;
 };
 
 type AiChatStatusResponse = {
@@ -63,6 +111,8 @@ type AiChatStatusResponse = {
     sessionStartPath: string;
     messagePath: string;
     sessionClosePath: string;
+    historyPath: string;
+    systemTimelinePath: string;
   };
   errorMessage?: string;
 };
@@ -72,6 +122,8 @@ type AiServiceRouteConfig = {
   sessionStartPath: string;
   messagePath: string;
   sessionClosePath: string;
+  historyPath: string;
+  systemTimelinePath: string;
 };
 
 const AI_GATEWAY_HEADER_NAME = 'X-Lifelines-Gateway-Key';
@@ -92,6 +144,8 @@ export class AiChatService {
       upstream_session_start_path: routeConfig.sessionStartPath,
       upstream_message_path: routeConfig.messagePath,
       upstream_session_close_path: routeConfig.sessionClosePath,
+      upstream_history_path: routeConfig.historyPath,
+      upstream_system_timeline_path: routeConfig.systemTimelinePath,
     });
 
     try {
@@ -147,6 +201,8 @@ export class AiChatService {
           sessionStartPath: routeConfig.sessionStartPath,
           messagePath: routeConfig.messagePath,
           sessionClosePath: routeConfig.sessionClosePath,
+          historyPath: routeConfig.historyPath,
+          systemTimelinePath: routeConfig.systemTimelinePath,
         },
         errorMessage,
       };
@@ -172,10 +228,102 @@ export class AiChatService {
           sessionStartPath: routeConfig.sessionStartPath,
           messagePath: routeConfig.messagePath,
           sessionClosePath: routeConfig.sessionClosePath,
+          historyPath: routeConfig.historyPath,
+          systemTimelinePath: routeConfig.systemTimelinePath,
         },
         errorMessage,
       };
     }
+  }
+
+  async createSystemTimelineEntry(
+    user: AuthUser,
+    payload: { sessionId: string; content: string; boundaryType: string },
+    incomingTraceId?: string,
+  ): Promise<AiChatSystemEntryResponse> {
+    const routeConfig = this.resolveRouteConfig();
+    const traceId = this.resolveTraceId(incomingTraceId, payload.sessionId);
+    const startedAt = Date.now();
+    const userHash = this.hashUserId(user.id);
+
+    this.logAudit('log', 'api.ai_chat.timeline_system.requested', traceId, {
+      session_id: payload.sessionId,
+      user_id_hash: userHash,
+      boundary_type: payload.boundaryType,
+      message_length: payload.content.length,
+      upstream_path: routeConfig.systemTimelinePath,
+    });
+
+    const response = await this.postJson(
+      routeConfig.systemTimelinePath,
+      traceId,
+      {
+        session_id: payload.sessionId,
+        user_id: user.id,
+        content: payload.content,
+        boundary_type: payload.boundaryType,
+      },
+    );
+
+    const item = this.normalizeSystemEntryResponse(response, traceId);
+
+    this.logAudit('log', 'api.ai_chat.timeline_system.completed', traceId, {
+      session_id: payload.sessionId,
+      user_id_hash: userHash,
+      boundary_type: payload.boundaryType,
+      latency_ms: Date.now() - startedAt,
+      message_length: payload.content.length,
+      upstream_path: routeConfig.systemTimelinePath,
+    });
+
+    return {
+      item,
+      traceId,
+      recordedAt: new Date().toISOString(),
+    };
+  }
+
+  async getHistory(
+    user: AuthUser,
+    query: { cursor?: string; limit?: string },
+    incomingTraceId?: string,
+  ): Promise<AiChatHistoryResponse> {
+    const routeConfig = this.resolveRouteConfig();
+    const traceId = this.resolveTraceId(incomingTraceId, 'history');
+    const startedAt = Date.now();
+    const userHash = this.hashUserId(user.id);
+    const limit = this.normalizeHistoryLimit(query.limit);
+
+    this.logAudit('log', 'api.ai_chat.history.requested', traceId, {
+      user_id_hash: userHash,
+      cursor: query.cursor,
+      limit,
+      upstream_path: routeConfig.historyPath,
+    });
+
+    const params = new URLSearchParams({
+      user_id: user.id,
+      limit: String(limit),
+    });
+    if (query.cursor?.trim()) {
+      params.set('cursor', query.cursor.trim());
+    }
+
+    const response = await this.getJson(
+      `${routeConfig.historyPath}?${params.toString()}`,
+      traceId,
+    );
+    const normalized = this.normalizeHistoryResponse(response, traceId);
+
+    this.logAudit('log', 'api.ai_chat.history.completed', traceId, {
+      user_id_hash: userHash,
+      latency_ms: Date.now() - startedAt,
+      item_count: normalized.items.length,
+      next_cursor: normalized.nextCursor,
+      upstream_path: routeConfig.historyPath,
+    });
+
+    return normalized;
   }
 
   async startSession(
@@ -194,6 +342,7 @@ export class AiChatService {
       user_id_hash: userHash,
       personality: dto.personality,
       language: dto.language,
+      memory_enabled: dto.memoryEnabled,
       has_initial_message: Boolean(dto.message?.trim()),
       upstream_path: routeConfig.sessionStartPath,
     });
@@ -209,6 +358,7 @@ export class AiChatService {
         weekly: '',
       },
       greeting: dto.greeting,
+      memory_enabled: dto.memoryEnabled,
       language: dto.language,
     });
 
@@ -248,6 +398,7 @@ export class AiChatService {
       user_id_hash: userHash,
       personality: dto.personality,
       language: dto.language,
+      memory_enabled: dto.memoryEnabled,
       message_length: message.length,
       upstream_path: routeConfig.messagePath,
     });
@@ -257,6 +408,7 @@ export class AiChatService {
       user_id: user.id,
       message,
       personality: dto.personality,
+      memory_enabled: dto.memoryEnabled,
       language: dto.language,
     });
 
@@ -299,6 +451,7 @@ export class AiChatService {
 
     await this.putJson(routeConfig.sessionClosePath, traceId, {
       session_id: normalizedSessionId,
+      user_id: user.id,
     });
 
     const recordedAt = new Date().toISOString();
@@ -333,6 +486,64 @@ export class AiChatService {
     payload: Record<string, unknown>,
   ): Promise<void> {
     await this.requestJson('PUT', path, traceId, payload);
+  }
+
+  private async getJson(
+    path: string,
+    traceId: string,
+  ): Promise<AiServiceHistoryEnvelope | undefined> {
+    const timeoutMs = this.resolveTimeoutMs();
+
+    try {
+      const response = await fetch(`${this.resolveAiBaseUrl()}${path}`, {
+        method: 'GET',
+        headers: this.buildAiHeaders(traceId, false),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      const rawText = await response.text();
+      const body = this.parseBody(rawText) as AiServiceHistoryEnvelope | undefined;
+
+      if (!response.ok) {
+        throw new BadGatewayException({
+          message:
+            this.extractErrorMessage(body as AiServiceEnvelope | undefined, rawText) ||
+            `AI service returned ${response.status}`,
+          traceId,
+        });
+      }
+
+      return body;
+    } catch (error) {
+      if (error instanceof BadGatewayException) {
+        this.logAudit('error', 'api.ai_chat.upstream.failed', traceId, {
+          error_type: error.name,
+          error_message: this.serializeException(error),
+        });
+        throw error;
+      }
+
+      if (this.isTimeoutError(error)) {
+        this.logAudit('error', 'api.ai_chat.upstream.timeout', traceId, {
+          timeout_ms: timeoutMs,
+          error_type: error instanceof Error ? error.name : 'TimeoutError',
+        });
+        throw new GatewayTimeoutException({
+          message: 'AI service timed out',
+          traceId,
+        });
+      }
+
+      this.logAudit('error', 'api.ai_chat.upstream.failed', traceId, {
+        error_type: error instanceof Error ? error.name : 'UnknownError',
+        error_message: this.serializeException(error),
+      });
+
+      throw new BadGatewayException({
+        message: 'AI service is unavailable right now',
+        traceId,
+      });
+    }
   }
 
   private async requestJson(
@@ -441,6 +652,86 @@ export class AiChatService {
     };
   }
 
+  private normalizeHistoryResponse(
+    response: AiServiceHistoryEnvelope | undefined,
+    traceId: string,
+  ): AiChatHistoryResponse {
+    if (response?.status !== 'success' || !response.data) {
+      throw new BadGatewayException({
+        message: 'AI service returned an unexpected history response',
+        traceId,
+      });
+    }
+
+    const items = (response.data.items ?? []).map((item, index) => {
+      if (
+        typeof item.id !== 'string' ||
+        (item.role !== 'user' && item.role !== 'assistant' && item.role !== 'system') ||
+        typeof item.content !== 'string' ||
+        typeof item.recorded_at !== 'string'
+      ) {
+        throw new BadGatewayException({
+          message: `AI service returned an invalid history item at index ${index}`,
+          traceId,
+        });
+      }
+
+      return {
+        id: item.id,
+        role: item.role as 'user' | 'assistant' | 'system',
+        content: item.content,
+        recordedAt: item.recorded_at,
+        sessionId: typeof item.session_id === 'string' ? item.session_id : null,
+        boundaryType:
+          typeof item.boundary_type === 'string' ? item.boundary_type : null,
+      };
+    });
+
+    return {
+      items,
+      nextCursor:
+        typeof response.data.next_cursor === 'string'
+          ? response.data.next_cursor
+          : null,
+      activeSessionId:
+        typeof response.data.active_session_id === 'string'
+          ? response.data.active_session_id
+          : null,
+      traceId,
+      recordedAt: new Date().toISOString(),
+    };
+  }
+
+  private normalizeSystemEntryResponse(
+    response: AiServiceEnvelope | undefined,
+    traceId: string,
+  ): AiChatHistoryItem {
+    const item = (response as AiServiceSystemEntryEnvelope | undefined)?.data;
+
+    if (
+      (response as AiServiceSystemEntryEnvelope | undefined)?.status !== 'success' ||
+      !item ||
+      typeof item.id !== 'string' ||
+      item.role !== 'system' ||
+      typeof item.content !== 'string' ||
+      typeof item.recorded_at !== 'string'
+    ) {
+      throw new BadGatewayException({
+        message: 'AI service returned an unexpected system timeline response',
+        traceId,
+      });
+    }
+
+    return {
+      id: item.id,
+      role: 'system',
+      content: item.content,
+      recordedAt: item.recorded_at,
+      sessionId: typeof item.session_id === 'string' ? item.session_id : null,
+      boundaryType: typeof item.boundary_type === 'string' ? item.boundary_type : null,
+    };
+  }
+
   private parseBody(rawText: string): AiServiceEnvelope | undefined {
     if (!rawText.trim()) {
       return undefined;
@@ -507,7 +798,25 @@ export class AiChatService {
         'AI_SERVICE_SESSION_CLOSE_PATH',
         '/api/v2/session/close',
       ),
+      historyPath: this.resolveRoutePath(
+        'AI_SERVICE_HISTORY_PATH',
+        '/api/v2/history',
+      ),
+      systemTimelinePath: this.resolveRoutePath(
+        'AI_SERVICE_SYSTEM_TIMELINE_PATH',
+        '/api/v2/timeline/system',
+      ),
     };
+  }
+
+  private normalizeHistoryLimit(rawValue?: string): number {
+    const parsed = Number.parseInt(rawValue?.trim() || '40', 10);
+
+    if (Number.isNaN(parsed)) {
+      return 40;
+    }
+
+    return Math.min(Math.max(parsed, 1), 100);
   }
 
   private resolveRoutePath(configKey: string, fallback: string): string {

@@ -33,4 +33,8 @@ export class StartAiChatSessionDto {
   @IsOptional()
   @IsBoolean()
   greeting = true;
+
+  @IsOptional()
+  @IsBoolean()
+  memoryEnabled = true;
 }
